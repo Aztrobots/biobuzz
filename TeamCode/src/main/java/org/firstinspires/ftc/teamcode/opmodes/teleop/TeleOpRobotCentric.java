@@ -43,8 +43,8 @@ public class TeleOpRobotCentric extends OpMode {
     public static double START_X = 48, START_Y = 9,   START_HEADING_DEG = 90;  // igual que el start del AutoPath
     public static double DOWN_X  = 48, DOWN_Y  = 24,  DOWN_HEADING_DEG  = 90;  // cell derecha
     public static double UP_X    = 48, UP_Y    = 120, UP_HEADING_DEG    = 270; // cell izquierda
-    public static double DOWN2_X = 72, DOWN2_Y = 24,  DOWN2_HEADING_DEG = 90;  // cell derecha (dpad_down)
-    public static double UP2_X   = 72, UP2_Y   = 120, UP2_HEADING_DEG   = 270; // cell izquierda (dpad_up)
+    public static double DOWN2_X = 70, DOWN2_Y = 24,  DOWN2_HEADING_DEG = 90;  // cell derecha (dpad_down)
+    public static double UP2_X   = 70, UP2_Y   = 120, UP2_HEADING_DEG   = 270; // cell izquierda (dpad_up)
 
     private final PoseFactory poses = PoseFactory.degrees();
 

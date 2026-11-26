@@ -32,10 +32,10 @@ public class TurretSubsystem {
     public static double OMEGA_LEAD_S = 0.05;
 
     //Goals rojos
-    public static double RED_RIGHT_X = 65.0;
-    public static double RED_RIGHT_Y = 59.9;
-    public static double RED_LEFT_X  = 65.0;
-    public static double RED_LEFT_Y  = 86.5;
+    public static double RED_RIGHT_X = 60;
+    public static double RED_RIGHT_Y = 59;
+    public static double RED_LEFT_X  = 82;
+    public static double RED_LEFT_Y  = 88;
     private static final double FIELD = 141.5;
 
     private final Servo servoA, servoB;

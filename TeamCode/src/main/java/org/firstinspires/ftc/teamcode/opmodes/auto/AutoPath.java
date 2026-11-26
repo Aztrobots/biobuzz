@@ -40,12 +40,12 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
  *
  *  0. Shooter ON desde el start
  *  1. preLoad          -> giro a 90  -> SHOOT1 -> giro a 270
- *  2. [intake ON, transfer quieto] toGarden, intoGarden -> espera
- *     -> back, intoGarden1, back1 [intake OFF]
+ *  INTAKE: desde intoGarden ya NO se apaga en todo el auto (intakeLatched)
+ *  2. [intake ON, transfer quieto] toGarden, intoGarden -> espera (una sola entrada)
  *  3. outGarden -> shootingPose -> giro a 270 -> SHOOT2 -> afterShoot (y-6) -> giro a 90
- *  4. [flower DOWN + intake ON] intoFlower [flower UP]
- *  5. shootingPose1 [intake OFF] -> giro a 270 -> SHOOT3
- *  6. [intake ON] toAllianceBalls, outAllianceBalls, backToShootingPose [intake OFF]
+ *  4. [flower DOWN + intake ON] intoFlower
+ *  5. shootingPose1 (atrás, flower aún abajo) [flower UP] -> giro a 270 -> SHOOT3
+ *  6. [intake ON] giro a 180 -> toAllianceBalls (heading fijo) -> espera (igual que GARDEN), outAllianceBalls, backToShootingPose [intake OFF]
  *                      -> giro a 90  -> SHOOT4
  *  7. shooter OFF -> park
  */
@@ -62,7 +62,7 @@ public class AutoPath extends LinearOpMode {
     public static double SHOOT_MS          = 1000; // ráfaga de 4 POLLEN
     public static double SPINUP_TIMEOUT_MS = 1500; // dispara aunque isAtSpeed() no llegue
     public static double FLOWER_SAFE_MS    = 300;  // tiempo para que la flower llegue a SHOOT_POS
-    public static double INTAKE_GARDEN_MS  = 1000; // intake ON en el GARDEN
+    public static double INTAKE_GARDEN_MS  = 500; // intake ON en el GARDEN
 
     // Giro sobre su eje en cada shooting pose
     public static double SHOOT_HEADING_LOW  = 90;   // en (48, 24): de frente al HIVE
@@ -88,42 +88,43 @@ public class AutoPath extends LinearOpMode {
     private FlowerSubsystem flower;
 
     private String step = "INIT";
+    private boolean intakeLatched = false; // true desde intoGarden: el intake ya no se apaga
 
     // ---------- Poses ----------
     private final PoseFactory poseFactory = PoseFactory.degrees();
 
-    private final Pose iNTAKEGARDEN = poseFactory.of(48, 9, 90); // START
+    private final Pose iNTAKEGARDEN = poseFactory.of(48, 7, 90); // START
     private final Pose preLoad = poseFactory.of(48, 24, 90);
     private final Pose toGardenStart = poseFactory.of(48, 24, 270);
-    private final Pose toGarden = poseFactory.of(5.9307, 13.1588, 270);
-    private final Pose intoGardenStart = poseFactory.of(5.9307, 13.1588, 270);
-    private final Pose intoGarden = poseFactory.of(5, 11, 270);
-    private final Pose backStart = poseFactory.of(5, 11, 270);
-    private final Pose back = poseFactory.of(5.015, 12.6609, 270);
-    private final Pose intoGarden1Start = poseFactory.of(5.015, 12.6609, 270);
-    private final Pose intoGarden1 = poseFactory.of(5.1014, 10, 270);
-    private final Pose back1Start = poseFactory.of(5.1014, 10, 270);
+    private final Pose toGarden = poseFactory.of(5.9307, 11.1588, 270);
+    private final Pose intoGardenStart = poseFactory.of(5.9307, 11.1588, 270);
+    private final Pose intoGarden = poseFactory.of(5, 13.5, 270);
+    private final Pose backStart = poseFactory.of(5, 13.5, 270);
+    private final Pose back = poseFactory.of(5.015, 12.9609, 270);
+    private final Pose intoGarden1Start = poseFactory.of(5.015, 12.9609, 270);
+    private final Pose intoGarden1 = poseFactory.of(5.1014, 12.5, 270);
+    private final Pose back1Start = poseFactory.of(5.1014, 12.5, 270);
     private final Pose back1 = poseFactory.of(5.0751, 13.1579, 270);
-    // Sale desde el final de back1
-    private final Pose outGardenStart = poseFactory.of(5.0751, 13.1579, 270);
+    // Sale directo desde el final de intoGarden (sin back / intoGarden1 / back1)
+    private final Pose outGardenStart = poseFactory.of(5, 11.5, 270);
     private final Pose outGarden = poseFactory.of(20.3351, 23.3, 90);
     private final Pose shootingPoseStart = poseFactory.of(20.3351, 23.3, 90);
     private final Pose shootingPose = poseFactory.of(48, 120, 90);
     private final Pose shootingPoseControl1 = poseFactory.of(12.321, 77.495, 0);
     // Después de SHOOT2: se aleja 6 in de la flor (sigue viendo a 270) antes de girar
     private final Pose afterShootStart = poseFactory.of(48, 120, 270);
-    private final Pose afterShoot = poseFactory.of(48, 114, 270);
-    private final Pose intoFlowerStart = poseFactory.of(48, 114, 90);
-    private final Pose intoFlower = poseFactory.of(48.0744, 124, 90);
-    private final Pose shootingPose1Start = poseFactory.of(48.0744, 123, 90);
+    private final Pose afterShoot = poseFactory.of(48.5, 114, 270);
+    private final Pose intoFlowerStart = poseFactory.of(48.5, 114, 90);
+    private final Pose intoFlower = poseFactory.of(48.5, 126, 90);
+    private final Pose shootingPose1Start = poseFactory.of(48.5, 128, 90);
     private final Pose shootingPose1 = poseFactory.of(48, 120.1, 90);
-    // Heading 270: después de SHOOT3 el robot se queda de frente al HIVE (270) y de ahí arranca
-    private final Pose toAllianceBallsStart = poseFactory.of(48, 120.1, 270);
-    private final Pose toAllianceBalls = poseFactory.of(17.6289, 129.7874, -180);
+    // Heading 180: después de SHOOT3 gira sobre su eje a 180 y de ahí avanza sin girar
+    private final Pose toAllianceBallsStart = poseFactory.of(48, 120.1, 180);
+    private final Pose toAllianceBalls = poseFactory.of(26.6289, 129.7874, -180);
     private final Pose toAllianceBallsControl1 = poseFactory.of(32.9146, 119.9901, 0);
-    private final Pose outAllianceBallsStart = poseFactory.of(17.6289, 129.7874, 180);
-    private final Pose outAllianceBalls = poseFactory.of(17.8187, 122.8572, -90);
-    private final Pose backToShootingPoseStart = poseFactory.of(17.8187, 122.8572, -90);
+    private final Pose outAllianceBallsStart = poseFactory.of(26.6289, 129.7874, 180);
+    private final Pose outAllianceBalls = poseFactory.of(26.8187, 122.8572, -90);
+    private final Pose backToShootingPoseStart = poseFactory.of(26.8187, 122.8572, -90);
     private final Pose backToShootingPose = poseFactory.of(47.6521, 23.9605, -90);
     private final Pose backToShootingPoseControl1 = poseFactory.of(13.0092, 53.8628, 0);
     private final Pose park = poseFactory.of(10.8833, 94.3188, -80.1947);
@@ -146,12 +147,10 @@ public class AutoPath extends LinearOpMode {
                 instant(this::intakeOn),
                 mark("toGarden"),      follow(follower, toGarden()),      delay(),
                 mark("intoGarden"),    follow(follower, intoGarden()),
+                instant(() -> intakeLatched = true),
                 mark("intake GARDEN"),
                 waitMs(INTAKE_GARDEN_MS),
                 waitMs(INTAKE_GARDEN_MS),
-                mark("back"),          follow(follower, back()),          delay(),
-                mark("intoGarden1"),   follow(follower, intoGarden1()),   delay(),
-                mark("back1"),         follow(follower, back1()),
                 instant(this::intakeOff),                                 delay(),
 
                 // 3. Sale del GARDEN y tiro 2 en (48, 120)
@@ -165,19 +164,23 @@ public class AutoPath extends LinearOpMode {
 
                 // 4. FLOWER (única vez que baja la flower)
                 instant(() -> { flower.down(); intakeOn(); }),
-                mark("intoFlower"),    follow(follower, intoFlower()),    delay(),
-                instant(flower::up),
+                mark("intoFlower"),    follow(follower, intoFlower()),    delay(),delay(), delay(),delay(),
 
-                // 5. Tiro 3
+                // 5. Se hace para atrás con la flower ABAJO, ya afuera la sube, y tiro 3
                 instant(() -> turret.setRightCell(SHOT3_RIGHT_CELL)),
                 mark("shootingPose1"), follow(follower, shootingPose1()),
+                instant(flower::up),
                 instant(this::intakeOff),                                 delay(),
                 turnTo(shootingPose1, SHOOT_HEADING_HIGH),
                 shoot("SHOOT3", SHOOT_TPS),
 
                 // 6. Alliance balls (flower en 0)
                 instant(this::intakeOn),
-                mark("toAllianceBalls"),  follow(follower, toAllianceBalls()),  delay(),
+                turnTo(shootingPose1, 180),   // gira sobre su eje ANTES de avanzar
+                mark("toAllianceBalls"),  follow(follower, toAllianceBalls()),
+                mark("intake ALLIANCE"),
+                waitMs(INTAKE_GARDEN_MS),
+                waitMs(INTAKE_GARDEN_MS),
                 mark("outAllianceBalls"), follow(follower, outAllianceBalls()), delay(),
                 instant(() -> turret.setRightCell(SHOT4_RIGHT_CELL)),
                 mark("backToShootingPose"), follow(follower, backToShootingPose()),
@@ -194,7 +197,11 @@ public class AutoPath extends LinearOpMode {
 
     /** Intake metiendo pieza; el transfer no se mueve. */
     private void intakeOn()  { intake.in();   transfer.stop(); }
-    private void intakeOff() { intake.stop(); transfer.stop(); }
+    /** Desde intoGarden (intakeLatched) solo para el transfer; el intake sigue prendido. */
+    private void intakeOff() {
+        if (!intakeLatched) intake.stop();
+        transfer.stop();
+    }
 
     /** Delay fijo entre paths. */
     private Command delay() {
@@ -236,7 +243,7 @@ public class AutoPath extends LinearOpMode {
                 ),
                 instant(() -> { gate.open(); transfer.feed(); intake.in(); }),
                 waitMs(SHOOT_MS),
-                instant(() -> { gate.close(); transfer.stop(); intake.stop(); flower.up(); })
+                instant(() -> { gate.close(); transfer.stop(); flower.up(); if (!intakeLatched) intake.stop(); })
         );
     }
 
@@ -352,7 +359,7 @@ public class AutoPath extends LinearOpMode {
     }
 
     public Path toAllianceBalls() {
-        return Paths.curve(toAllianceBallsStart, toAllianceBallsControl1, toAllianceBalls).linear(toAllianceBallsStart, toAllianceBalls);
+        return Paths.curve(toAllianceBallsStart, toAllianceBallsControl1, toAllianceBalls).constant(toAllianceBalls);
     }
 
     public Path outAllianceBalls() {
