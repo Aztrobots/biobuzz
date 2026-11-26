@@ -10,7 +10,6 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 public class TransferSubsystem {
     public static double FEED_POWER    = 0.45;
     public static double REVERSE_POWER = -1.0;
-    public static double HOLD_POWER    = -0.65; // reversa suave: rechaza pelotas mientras se hace intake
     public static boolean REVERSED = true;
 
     private final DcMotorEx motor;
@@ -25,7 +24,6 @@ public class TransferSubsystem {
 
     public void feed()    { setPower(FEED_POWER); }
     public void reverse() { setPower(REVERSE_POWER); }
-    public void hold()    { setPower(HOLD_POWER); }
     public void stop()    { setPower(0.0); }
 
     public void setPower(double p) {

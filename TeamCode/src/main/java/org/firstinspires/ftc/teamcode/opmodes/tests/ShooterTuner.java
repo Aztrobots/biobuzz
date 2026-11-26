@@ -82,7 +82,7 @@ public class ShooterTuner extends OpMode {
             intake.in();
         } else if (intaking) {
             gate.close();
-            transfer.hold();
+            transfer.stop();
             intake.in();
         } else {
             gate.close();

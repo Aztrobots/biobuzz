@@ -38,20 +38,16 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
  * Disparo: el robot llega con el heading del path, GIRA SOBRE SU EJE para quedar
  *          de frente al HIVE, dispara y (si el siguiente path lo pide) gira de regreso.
  *
- *  ACTIVO (validación paso a paso):
  *  0. Shooter ON desde el start
  *  1. preLoad          -> giro a 90  -> SHOOT1 -> giro a 270
- *  2. [intake ON + transfer HOLD] toGarden, intoGarden -> espera -> OFF
- *  3. outGarden (desde intoGarden) -> shootingPose -> giro a 270 -> SHOOT2 -> FIN
- *
- *  COMENTADO:
- *  2b. back, intoGarden1, back1
- *  3b. giro a 90 después de SHOOT2
+ *  2. [intake ON, transfer quieto] toGarden, intoGarden -> espera
+ *     -> back, intoGarden1, back1 [intake OFF]
+ *  3. outGarden -> shootingPose -> giro a 270 -> SHOOT2 -> giro a 90
  *  4. [flower DOWN + intake ON] intoFlower [flower UP]
  *  5. shootingPose1 [intake OFF] -> giro a 270 -> SHOOT3
  *  6. [intake ON] toAllianceBalls, outAllianceBalls, backToShootingPose [intake OFF]
  *                      -> giro a 90  -> SHOOT4
- *  7. park
+ *  7. shooter OFF -> park
  */
 @Configurable
 @Autonomous(name = "AutoPath", group = "Autonomous")
@@ -108,15 +104,15 @@ public class AutoPath extends LinearOpMode {
     private final Pose intoGarden1 = poseFactory.of(9.1014, 7.7659, 270);
     private final Pose back1Start = poseFactory.of(9.1014, 7.7659, 270);
     private final Pose back1 = poseFactory.of(9.0751, 13.1579, 270);
-    // Sale directo desde intoGarden (back / intoGarden1 / back1 desactivados)
-    private final Pose outGardenStart = poseFactory.of(9, 8, 270);
+    // Sale desde el final de back1
+    private final Pose outGardenStart = poseFactory.of(9.0751, 13.1579, 270);
     private final Pose outGarden = poseFactory.of(20.3351, 23.3, 90);
     private final Pose shootingPoseStart = poseFactory.of(20.3351, 23.3, 90);
     private final Pose shootingPose = poseFactory.of(48, 120, 90);
     private final Pose shootingPoseControl1 = poseFactory.of(12.321, 77.495, 0);
     private final Pose intoFlowerStart = poseFactory.of(48, 120, 90);
-    private final Pose intoFlower = poseFactory.of(48.0744, 128, 90);
-    private final Pose shootingPose1Start = poseFactory.of(48.0744, 128, 90);
+    private final Pose intoFlower = poseFactory.of(48.0744, 123, 90);
+    private final Pose shootingPose1Start = poseFactory.of(48.0744, 123, 90);
     private final Pose shootingPose1 = poseFactory.of(48, 120.1, 90);
     // Heading 270: después de SHOOT3 el robot se queda de frente al HIVE (270) y de ahí arranca
     private final Pose toAllianceBallsStart = poseFactory.of(48, 120.1, 270);
@@ -143,59 +139,57 @@ public class AutoPath extends LinearOpMode {
                 shoot("SHOOT1", PRELOAD_TPS),
                 turnTo(preLoad, 270),
 
-                // 2. GARDEN: intake ON desde que sale hacia el GARDEN, sigue INTAKE_GARDEN_MS ya adentro
+                // 2. GARDEN: intake ON desde que sale hacia el GARDEN
                 instant(this::intakeOn),
                 mark("toGarden"),      follow(follower, toGarden()),      delay(),
                 mark("intoGarden"),    follow(follower, intoGarden()),
                 mark("intake GARDEN"),
                 waitMs(INTAKE_GARDEN_MS),
                 waitMs(INTAKE_GARDEN_MS),
+                mark("back"),          follow(follower, back()),          delay(),
+                mark("intoGarden1"),   follow(follower, intoGarden1()),   delay(),
+                mark("back1"),         follow(follower, back1()),
                 instant(this::intakeOff),                                 delay(),
 
-                // 3. Sale del GARDEN (directo desde intoGarden) y tiro 2 en (48, 120)
+                // 3. Sale del GARDEN y tiro 2 en (48, 120)
                 mark("outGarden"),     follow(follower, outGarden()),     delay(),
                 instant(() -> turret.setRightCell(SHOT2_RIGHT_CELL)),
                 mark("shootingPose"),  follow(follower, shootingPose()),  delay(),
                 turnTo(shootingPose, SHOOT_HEADING_HIGH),
                 shoot("SHOOT2", SHOOT_TPS),
+                turnTo(shootingPose, 90),
 
-                // ===== VALIDAR LO DE ARRIBA ANTES DE DESCOMENTAR =====
-                // (back, intoGarden1, back1 quedan fuera: outGarden ya sale desde intoGarden)
-                // turnTo(shootingPose, 90),
+                // 4. FLOWER (única vez que baja la flower)
+                instant(() -> { flower.down(); intakeOn(); }),
+                mark("intoFlower"),    follow(follower, intoFlower()),    delay(),
+                instant(flower::up),
 
-                // // 4. FLOWER (única vez que baja la flower)
-                // instant(() -> { flower.down(); intakeOn(); }),
-                // mark("intoFlower"),    follow(follower, intoFlower()),    delay(),
-                // instant(flower::up),
+                // 5. Tiro 3
+                instant(() -> turret.setRightCell(SHOT3_RIGHT_CELL)),
+                mark("shootingPose1"), follow(follower, shootingPose1()),
+                instant(this::intakeOff),                                 delay(),
+                turnTo(shootingPose1, SHOOT_HEADING_HIGH),
+                shoot("SHOOT3", SHOOT_TPS),
 
-                // // 5. Tiro 3
-                // instant(() -> turret.setRightCell(SHOT3_RIGHT_CELL)),
-                // mark("shootingPose1"), follow(follower, shootingPose1()),
-                // instant(this::intakeOff),                                    delay(),
-                // turnTo(shootingPose1, SHOOT_HEADING_HIGH),
-                // shoot("SHOOT3", SHOOT_TPS),
+                // 6. Alliance balls (flower en 0)
+                instant(this::intakeOn),
+                mark("toAllianceBalls"),  follow(follower, toAllianceBalls()),  delay(),
+                mark("outAllianceBalls"), follow(follower, outAllianceBalls()), delay(),
+                instant(() -> turret.setRightCell(SHOT4_RIGHT_CELL)),
+                mark("backToShootingPose"), follow(follower, backToShootingPose()),
+                instant(this::intakeOff),                                 delay(),
+                turnTo(backToShootingPose, SHOOT_HEADING_LOW),
+                shoot("SHOOT4", SHOOT_TPS),
 
-                // // 6. Alliance balls (flower en 0)
-                // instant(this::intakeOn),
-                // mark("toAllianceBalls"),  follow(follower, toAllianceBalls()),  delay(),
-                // mark("outAllianceBalls"), follow(follower, outAllianceBalls()), delay(),
-                // instant(() -> turret.setRightCell(SHOT4_RIGHT_CELL)),
-                // mark("backToShootingPose"), follow(follower, backToShootingPose()),
-                // instant(this::intakeOff),                                    delay(),
-                // turnTo(backToShootingPose, SHOOT_HEADING_LOW),
-                // shoot("SHOOT4", SHOOT_TPS),
-
-                // // 7. Park
-                // instant(shooter::stop),
-                // mark("park"),          follow(follower, park()),
-
+                // 7. Park
                 instant(shooter::stop),
+                mark("park"),          follow(follower, park()),
                 mark("DONE")
         );
     }
 
-    /** Intake metiendo pieza + transfer en reversa suave (HOLD_POWER) para rechazar pelotas. */
-    private void intakeOn()  { intake.in();   transfer.hold(); }
+    /** Intake metiendo pieza; el transfer no se mueve. */
+    private void intakeOn()  { intake.in();   transfer.stop(); }
     private void intakeOff() { intake.stop(); transfer.stop(); }
 
     /** Delay fijo entre paths. */
@@ -284,7 +278,7 @@ public class AutoPath extends LinearOpMode {
 
             Pose pose = follower.pose();
             PoseStorage.save(pose); // el TeleOp arranca desde aquí
-            turret.aim(pose.x(), pose.y(), pose.heading());
+            turret.aim(pose.x(), pose.y(), pose.heading(), follower.velocity().omega);
             shooter.update();
 
             telemetry.addData("Step", step);

@@ -56,7 +56,7 @@ public class TurretTest extends OpMode {
         lastX = gamepad1.x;
         lastY = gamepad1.y;
 
-        if (aimMode) turret.aim(pose.x(), pose.y(), pose.heading());
+        if (aimMode) turret.aim(pose.x(), pose.y(), pose.heading(), follower.velocity().omega);
         else         turret.setAngleDeg(TEST_DEG);
 
         double bearing = Math.toDegrees(Math.atan2(turret.getGoalY() - pose.y(), turret.getGoalX() - pose.x()));

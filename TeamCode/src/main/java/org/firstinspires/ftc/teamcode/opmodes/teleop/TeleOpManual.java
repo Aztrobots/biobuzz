@@ -25,9 +25,9 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 /**
  * TeleOp ROJO con Pedro 3 + auto-aim de torreta. Arranca en la pose final del AutoPath (o en START si no hubo auto).
  *  Sticks: manejo FIELD CENTRIC (mover cualquier stick cancela el auto-drive / el hold)
- *  dpad_down: ir a (48, 24) + cell derecha   |  dpad_up: ir a (48, 120) + cell izquierda
- *  dpad_right: cell derecha sin moverse     |  dpad_left: cell izquierda sin moverse
- *  A: shooter on/off  |  RB: ráfaga (solo a velocidad)  |  RT: intake + hold  |  LT: escupir  |  Y: flower
+ *  dpad_right: ir a (48, 24) + cell derecha  |  dpad_left: ir a (48, 120) + cell izquierda (los dos regresan a auto-aim)
+ *  dpad_up / dpad_down: torreta MANUAL de emergencia (+/- TURRET_STEP_DEG), apaga el auto-aim
+ *  A: shooter on/off  |  RB: ráfaga (solo a velocidad)  |  RT: intake  |  LT: escupir  |  Y: flower
  */
 @Configurable
 @TeleOp(name = "TeleOpManual", group = "teleop")
@@ -38,6 +38,7 @@ public class TeleOpManual extends OpMode {
     public static double FLOWER_SAFE_MS = 300;  // tiempo para que la flower llegue a SHOOT_POS
     public static double STRAFE_MULT    = 1.1;
     public static double STICK_DB       = 0.08; // stick arriba de esto cancela el auto-drive
+    public static double TURRET_STEP_DEG = 10;  // torreta manual: grados por toque (+ = izquierda)
     // Dirección del campo (frame de Pedro) que es "adelante" para el driver: 0, 90, 180 o 270
     public static double FIELD_FORWARD_DEG = 0;
 
@@ -63,6 +64,7 @@ public class TeleOpManual extends OpMode {
     private boolean bursting = false;
     private final ElapsedTime shootTimer = new ElapsedTime();
     private Pose startPose;
+    private boolean manualTurret = false;
 
     @Override
     public void init() {
@@ -110,19 +112,25 @@ public class TeleOpManual extends OpMode {
         double rx =  -gamepad1.right_stick_x;
         boolean sticks = Math.abs(y) > STICK_DB || Math.abs(x) > STICK_DB || Math.abs(rx) > STICK_DB;
 
-        if (gamepad1.dpad_down && !lastDpadDown) {
+        if (gamepad1.dpad_right && !lastDpadRight) {
             goTo(DOWN_X, DOWN_Y, DOWN_HEADING_DEG, true);
-        } else if (gamepad1.dpad_up && !lastDpadUp) {
+        } else if (gamepad1.dpad_left && !lastDpadLeft) {
             goTo(UP_X, UP_Y, UP_HEADING_DEG, false);
         }
-        lastDpadDown = gamepad1.dpad_down;
-        lastDpadUp   = gamepad1.dpad_up;
-
-        // Cambiar de cell sin mover el robot
-        if (gamepad1.dpad_right && !lastDpadRight) turret.setRightCell(true);
-        if (gamepad1.dpad_left  && !lastDpadLeft)  turret.setRightCell(false);
         lastDpadRight = gamepad1.dpad_right;
         lastDpadLeft  = gamepad1.dpad_left;
+
+        // Torreta manual de emergencia (parte del ángulo actual, sin brincos; el subsystem respeta la ventana)
+        if (gamepad1.dpad_up && !lastDpadUp) {
+            manualTurret = true;
+            turret.setAngleDeg(turret.getTargetDeg() + TURRET_STEP_DEG);
+        }
+        if (gamepad1.dpad_down && !lastDpadDown) {
+            manualTurret = true;
+            turret.setAngleDeg(turret.getTargetDeg() - TURRET_STEP_DEG);
+        }
+        lastDpadUp   = gamepad1.dpad_up;
+        lastDpadDown = gamepad1.dpad_down;
 
         // Auto-drive (FOLLOW, y HOLD al llegar) hasta que el driver toque los sticks
         Follower.Mode mode = follower.mode();
@@ -137,8 +145,8 @@ public class TeleOpManual extends OpMode {
         Pose pose = follower.pose();
         PoseStorage.save(pose); // si reinicias el TeleOp, sigue desde aquí
 
-        // ---------- Turret (auto-aim) ----------
-        turret.aim(pose.x(), pose.y(), pose.heading());
+        // ---------- Turret (auto-aim, salvo que esté en manual) ----------
+        if (!manualTurret) turret.aim(pose.x(), pose.y(), pose.heading(), follower.velocity().omega);
 
         // ---------- Shooter ----------
         if (gamepad1.a && !lastA) shooterOn = !shooterOn;
@@ -178,7 +186,7 @@ public class TeleOpManual extends OpMode {
             gate.close();
             if (gamepad1.right_trigger > 0.05) {
                 intake.in();
-                transfer.hold();   // reversa suave: no deja subir pelotas de más
+                transfer.stop();   // el transfer no se mueve mientras hay intake
             } else if (gamepad1.left_trigger > 0.05) {
                 intake.out();
                 transfer.reverse();
@@ -192,6 +200,7 @@ public class TeleOpManual extends OpMode {
         telemetry.addData("x / y / h", "%.1f / %.1f / %.1f",
                 pose.x(), pose.y(), Math.toDegrees(pose.heading()));
         telemetry.addData("Cell", turret.isRightCell() ? "DERECHA" : "IZQUIERDA");
+        telemetry.addData("Torreta", manualTurret ? "MANUAL" : "AUTO-AIM");
         telemetry.addData("Turret deg / dist", "%.1f / %.1f", turret.getTargetDeg(), turret.getDistanceIn());
         telemetry.addData("Shooter", shooterOn ? "ON" : "OFF");
         telemetry.addData("FW Target / Actual", "%.0f / %.0f", shooter.getTargetTps(), shooter.getVelocity());
@@ -204,6 +213,7 @@ public class TeleOpManual extends OpMode {
     /** Path recto desde la pose actual; se construye solo en el flanco del botón. */
     private void goTo(double x, double y, double headingDeg, boolean rightCell) {
         turret.setRightCell(rightCell);
+        manualTurret = false; // ir a una posición de tiro regresa al auto-aim
         Pose target = poses.of(x, y, headingDeg);
         // Ya estás encima del punto: un path de largo ~0 da tangente NaN, mejor solo sostener ahí
         if (follower.pose().distance(target) < 1.0) follower.hold(target);

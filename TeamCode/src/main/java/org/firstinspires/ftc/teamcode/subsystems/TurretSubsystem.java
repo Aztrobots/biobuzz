@@ -28,6 +28,9 @@ public class TurretSubsystem {
     public static double DIST_FAR_IN  = 110.0;
     public static double DEADBAND_DEG = 0.3;
 
+    // Compensación de giro: adelanta la torreta ω·OMEGA_LEAD_S para cubrir el lag del servo. 0 = desactivado
+    public static double OMEGA_LEAD_S = 0.05;
+
     //Goals rojos
     public static double RED_RIGHT_X = 65.0;
     public static double RED_RIGHT_Y = 59.9;
@@ -87,10 +90,11 @@ public class TurretSubsystem {
     }
 
     /**
-     * Auto-aim. Pose en pulgadas, heading en radianes (frame de Pedro).
-     * Filtra solo el bearing de campo (ruido de odometría); el heading se resta sin filtrar.
+     * Auto-aim. Pose en pulgadas, heading en radianes, omega en rad/s (frame de Pedro).
+     * Filtra solo el bearing de campo (ruido de odometría); el heading se resta sin filtrar
+     * y adelantado por omega para que el servo no llegue tarde cuando el robot gira.
      */
-    public void aim(double x, double y, double headingRad) {
+    public void aim(double x, double y, double headingRad, double omegaRadS) {
         double dx = goalX - x;
         double dy = goalY - y;
         distanceIn = Math.hypot(dx, dy);
@@ -112,7 +116,8 @@ public class TurretSubsystem {
         }
         lastAimNs = now;
 
-        double shooterHeading = headingRad + Math.toRadians(SHOOTER_FACING_DEG);
+        if (Double.isNaN(omegaRadS)) omegaRadS = 0.0;
+        double shooterHeading = headingRad + omegaRadS * OMEGA_LEAD_S + Math.toRadians(SHOOTER_FACING_DEG);
         command(Math.toDegrees(AngleUnit.normalizeRadians(filteredBearing - shooterHeading)));
     }
 
