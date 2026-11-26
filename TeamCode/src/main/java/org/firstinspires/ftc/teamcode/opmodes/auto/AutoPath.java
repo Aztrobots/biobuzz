@@ -42,7 +42,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
  *  1. preLoad          -> giro a 90  -> SHOOT1 -> giro a 270
  *  2. [intake ON, transfer quieto] toGarden, intoGarden -> espera
  *     -> back, intoGarden1, back1 [intake OFF]
- *  3. outGarden -> shootingPose -> giro a 270 -> SHOOT2 -> giro a 90
+ *  3. outGarden -> shootingPose -> giro a 270 -> SHOOT2 -> afterShoot (y-6) -> giro a 90
  *  4. [flower DOWN + intake ON] intoFlower [flower UP]
  *  5. shootingPose1 [intake OFF] -> giro a 270 -> SHOOT3
  *  6. [intake ON] toAllianceBalls, outAllianceBalls, backToShootingPose [intake OFF]
@@ -56,8 +56,8 @@ public class AutoPath extends LinearOpMode {
     // ---------- Tunables (Panels) ----------
     public static boolean IS_BLUE = false;
     public static double PATH_DELAY_MS     = 200;
-    public static double PRELOAD_TPS       = 1100;
-    public static double SHOOT_TPS         = 1100;
+    public static double PRELOAD_TPS       = 1080;
+    public static double SHOOT_TPS         = 1080;
     public static double HOOD_POS          = 0.55;
     public static double SHOOT_MS          = 1000; // ráfaga de 4 POLLEN
     public static double SPINUP_TIMEOUT_MS = 1500; // dispara aunque isAtSpeed() no llegue
@@ -95,23 +95,26 @@ public class AutoPath extends LinearOpMode {
     private final Pose iNTAKEGARDEN = poseFactory.of(48, 9, 90); // START
     private final Pose preLoad = poseFactory.of(48, 24, 90);
     private final Pose toGardenStart = poseFactory.of(48, 24, 270);
-    private final Pose toGarden = poseFactory.of(8.9307, 13.1588, 270);
-    private final Pose intoGardenStart = poseFactory.of(8.9307, 13.1588, 270);
-    private final Pose intoGarden = poseFactory.of(8, 11, 270);
-    private final Pose backStart = poseFactory.of(8, 11, 270);
-    private final Pose back = poseFactory.of(9.015, 12.6609, 270);
-    private final Pose intoGarden1Start = poseFactory.of(9.015, 12.6609, 270);
-    private final Pose intoGarden1 = poseFactory.of(9.1014, 7.7659, 270);
-    private final Pose back1Start = poseFactory.of(9.1014, 7.7659, 270);
-    private final Pose back1 = poseFactory.of(9.0751, 13.1579, 270);
+    private final Pose toGarden = poseFactory.of(5.9307, 13.1588, 270);
+    private final Pose intoGardenStart = poseFactory.of(5.9307, 13.1588, 270);
+    private final Pose intoGarden = poseFactory.of(5, 11, 270);
+    private final Pose backStart = poseFactory.of(5, 11, 270);
+    private final Pose back = poseFactory.of(5.015, 12.6609, 270);
+    private final Pose intoGarden1Start = poseFactory.of(5.015, 12.6609, 270);
+    private final Pose intoGarden1 = poseFactory.of(5.1014, 10, 270);
+    private final Pose back1Start = poseFactory.of(5.1014, 10, 270);
+    private final Pose back1 = poseFactory.of(5.0751, 13.1579, 270);
     // Sale desde el final de back1
-    private final Pose outGardenStart = poseFactory.of(9.0751, 13.1579, 270);
+    private final Pose outGardenStart = poseFactory.of(5.0751, 13.1579, 270);
     private final Pose outGarden = poseFactory.of(20.3351, 23.3, 90);
     private final Pose shootingPoseStart = poseFactory.of(20.3351, 23.3, 90);
     private final Pose shootingPose = poseFactory.of(48, 120, 90);
     private final Pose shootingPoseControl1 = poseFactory.of(12.321, 77.495, 0);
-    private final Pose intoFlowerStart = poseFactory.of(48, 120, 90);
-    private final Pose intoFlower = poseFactory.of(48.0744, 123, 90);
+    // Después de SHOOT2: se aleja 6 in de la flor (sigue viendo a 270) antes de girar
+    private final Pose afterShootStart = poseFactory.of(48, 120, 270);
+    private final Pose afterShoot = poseFactory.of(48, 114, 270);
+    private final Pose intoFlowerStart = poseFactory.of(48, 114, 90);
+    private final Pose intoFlower = poseFactory.of(48.0744, 124, 90);
     private final Pose shootingPose1Start = poseFactory.of(48.0744, 123, 90);
     private final Pose shootingPose1 = poseFactory.of(48, 120.1, 90);
     // Heading 270: después de SHOOT3 el robot se queda de frente al HIVE (270) y de ahí arranca
@@ -157,7 +160,8 @@ public class AutoPath extends LinearOpMode {
                 mark("shootingPose"),  follow(follower, shootingPose()),  delay(),
                 turnTo(shootingPose, SHOOT_HEADING_HIGH),
                 shoot("SHOOT2", SHOOT_TPS),
-                turnTo(shootingPose, 90),
+                mark("afterShoot"),    follow(follower, afterShoot()),    delay(),
+                turnTo(afterShoot, 90),
 
                 // 4. FLOWER (única vez que baja la flower)
                 instant(() -> { flower.down(); intakeOn(); }),
@@ -333,6 +337,10 @@ public class AutoPath extends LinearOpMode {
 
     public Path shootingPose() {
         return Paths.curve(shootingPoseStart, shootingPoseControl1, shootingPose).linear(shootingPoseStart, shootingPose);
+    }
+
+    public Path afterShoot() {
+        return Paths.line(afterShootStart, afterShoot).constant(afterShoot);
     }
 
     public Path intoFlower() {

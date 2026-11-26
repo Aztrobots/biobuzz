@@ -6,15 +6,17 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 @Configurable
 public class GateSubsystem {
-    public static double BLOCK_POS = 0.0;
-    public static double OPEN_POS  = 0.14;
+    public static double BLOCK_POS = 0.5;
+    public static double OPEN_POS  = 0.8;
 
     private final Servo servo;
+
     private boolean open = false;
     private boolean written = false;
 
     public GateSubsystem(HardwareMap hw) {
         servo = hw.get(Servo.class, "gate");
+        servo.setDirection(Servo.Direction.FORWARD);
     }
 
     public void open()  { set(true); }

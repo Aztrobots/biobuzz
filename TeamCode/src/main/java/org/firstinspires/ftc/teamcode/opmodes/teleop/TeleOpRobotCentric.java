@@ -31,7 +31,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 @Configurable
 @TeleOp(name = "TeleOpRobotCentric", group = "teleop")
 public class TeleOpRobotCentric extends OpMode {
-    public static double SHOOT_TPS      = 1100; // tuneado en ShooterTuner
+    public static double SHOOT_TPS      = 1060; // tuneado en ShooterTuner
     public static double HOOD_POS       = 0.55; // tuneado en ShooterTuner
     public static double SHOOT_MS       = 800;
     public static double FLOWER_SAFE_MS = 300;  // tiempo para que la flower llegue a SHOOT_POS
