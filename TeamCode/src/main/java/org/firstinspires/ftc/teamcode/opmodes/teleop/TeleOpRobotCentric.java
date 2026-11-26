@@ -11,6 +11,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.pedro.Constants;
+import org.firstinspires.ftc.teamcode.robot.PoseStorage;
 import org.firstinspires.ftc.teamcode.subsystems.FlowerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.GateSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
@@ -20,7 +21,7 @@ import org.firstinspires.ftc.teamcode.subsystems.TransferSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 
 /**
- * TeleOp ROJO con Pedro 3 + auto-aim de torreta. Variante ROBOT CENTRIC de TeleOpManual.
+ * TeleOp ROJO con Pedro 3 + auto-aim de torreta. Arranca en la pose final del AutoPath (o en START si no hubo auto). Variante ROBOT CENTRIC de TeleOpManual.
  *  Sticks: manejo ROBOT CENTRIC (mover cualquier stick cancela el auto-drive / el hold)
  *  dpad_down: ir a (48, 24) + cell derecha   |  dpad_up: ir a (48, 120) + cell izquierda
  *  dpad_right: cell derecha sin moverse     |  dpad_left: cell izquierda sin moverse
@@ -29,15 +30,15 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
 @Configurable
 @TeleOp(name = "TeleOpRobotCentric", group = "teleop")
 public class TeleOpRobotCentric extends OpMode {
-    public static double SHOOT_TPS      = 1060; // tuneado en ShooterTuner
-    public static double HOOD_POS       = 0.25; // tuneado en ShooterTuner
+    public static double SHOOT_TPS      = 1100; // tuneado en ShooterTuner
+    public static double HOOD_POS       = 0.55; // tuneado en ShooterTuner
     public static double SHOOT_MS       = 800;
     public static double FLOWER_SAFE_MS = 300;  // tiempo para que la flower llegue a SHOOT_POS
     public static double STRAFE_MULT    = 1.1;
     public static double STICK_DB       = 0.08; // stick arriba de esto cancela el auto-drive
 
     // Poses en frame de Pedro (in, grados). Headings iguales a los de AutoPath (de frente al HIVE)
-    public static double START_X = 48, START_Y = 9,   START_HEADING_DEG = 270;
+    public static double START_X = 48, START_Y = 9,   START_HEADING_DEG = 90;  // igual que el start del AutoPath
     public static double DOWN_X  = 48, DOWN_Y  = 24,  DOWN_HEADING_DEG  = 90;  // cell derecha
     public static double UP_X    = 48, UP_Y    = 120, UP_HEADING_DEG    = 270; // cell izquierda
 
@@ -57,6 +58,7 @@ public class TeleOpRobotCentric extends OpMode {
     private boolean lastDpadDown = false, lastDpadUp = false, lastDpadLeft = false, lastDpadRight = false;
     private boolean bursting = false;
     private final ElapsedTime shootTimer = new ElapsedTime();
+    private Pose startPose;
 
     @Override
     public void init() {
@@ -76,12 +78,22 @@ public class TeleOpRobotCentric extends OpMode {
         turret.setRightCell(true);
 
         follower = Constants.create(hardwareMap);
-        follower.setPose(poses.of(START_X, START_Y, START_HEADING_DEG));
+        // Hereda la pose del AutoPath; si no hay (TeleOp sin auto antes), usa START
+        boolean fromAuto = PoseStorage.pose != null;
+        startPose = fromAuto ? PoseStorage.pose : poses.of(START_X, START_Y, START_HEADING_DEG);
+        follower.setPose(startPose);
         follower.update();
+        telemetry.addData("Pose inicial", fromAuto ? "HEREDADA (auto o TeleOp anterior)" : "START");
+        telemetry.addData("x / y / h inicial", "%.1f / %.1f / %.1f",
+                startPose.x(), startPose.y(), Math.toDegrees(startPose.heading()));
+        telemetry.update();
     }
 
     @Override
     public void start() {
+        // Se vuelve a escribir: al crear el follower el Pinpoint recalibra el IMU y puede ignorar el setPose del init
+        follower.setPose(startPose);
+        follower.update();
         gate.close();
         flower.up();
     }
@@ -115,6 +127,7 @@ public class TeleOpRobotCentric extends OpMode {
 
         follower.update();
         Pose pose = follower.pose();
+        PoseStorage.save(pose); // si reinicias el TeleOp, sigue desde aquí
 
         // ---------- Turret (auto-aim) ----------
         turret.aim(pose.x(), pose.y(), pose.heading());
@@ -184,7 +197,9 @@ public class TeleOpRobotCentric extends OpMode {
     private void goTo(double x, double y, double headingDeg, boolean rightCell) {
         turret.setRightCell(rightCell);
         Pose target = poses.of(x, y, headingDeg);
-        follower.follow(Paths.line(follower.pose(), target).constant(target));
+        // Ya estás encima del punto: un path de largo ~0 da tangente NaN, mejor solo sostener ahí
+        if (follower.pose().distance(target) < 1.0) follower.hold(target);
+        else follower.follow(Paths.line(follower.pose(), target).constant(target));
     }
 
     @Override

@@ -11,8 +11,8 @@ public class IntakeSubsystem {
     public static double IN_POWER  = 1.0;
     public static double OUT_POWER = -1.0;
     // Motores encontrados: uno debe ir invertido para que ambos metan pieza
-    public static boolean REVERSE_INTAKE  = true;
-    public static boolean REVERSE_INTAKE1 = false;
+    public static boolean REVERSE_INTAKE  = false;
+    public static boolean REVERSE_INTAKE1 = true;
 
     private final DcMotorEx m0, m1;
     private double lastPower = -2.0; // sentinel (no NaN)

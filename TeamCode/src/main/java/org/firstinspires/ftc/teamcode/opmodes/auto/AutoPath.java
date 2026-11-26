@@ -21,6 +21,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
+import org.firstinspires.ftc.teamcode.robot.PoseStorage;
 import org.firstinspires.ftc.teamcode.subsystems.FlowerSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.GateSubsystem;
 import org.firstinspires.ftc.teamcode.subsystems.HoodSubsystem;
@@ -38,8 +39,9 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
  *          de frente al HIVE, dispara y (si el siguiente path lo pide) gira de regreso.
  *
  *  ACTIVO (validación paso a paso):
+ *  0. Shooter ON desde el start
  *  1. preLoad          -> giro a 90  -> SHOOT1 -> giro a 270
- *  2. toGarden, intoGarden -> intake ON + transfer HOLD -> OFF
+ *  2. [intake ON + transfer HOLD] toGarden, intoGarden -> espera -> OFF
  *  3. outGarden (desde intoGarden) -> shootingPose -> giro a 270 -> SHOOT2 -> FIN
  *
  *  COMENTADO:
@@ -57,10 +59,10 @@ public class AutoPath extends LinearOpMode {
 
     // ---------- Tunables (Panels) ----------
     public static boolean IS_BLUE = false;
-    public static double PATH_DELAY_MS     = 600;
-    public static double PRELOAD_TPS       = 1120;
-    public static double SHOOT_TPS         = 1070;
-    public static double HOOD_POS          = 0.25;
+    public static double PATH_DELAY_MS     = 200;
+    public static double PRELOAD_TPS       = 1100;
+    public static double SHOOT_TPS         = 1100;
+    public static double HOOD_POS          = 0.55;
     public static double SHOOT_MS          = 1000; // ráfaga de 4 POLLEN
     public static double SPINUP_TIMEOUT_MS = 1500; // dispara aunque isAtSpeed() no llegue
     public static double FLOWER_SAFE_MS    = 300;  // tiempo para que la flower llegue a SHOOT_POS
@@ -96,11 +98,11 @@ public class AutoPath extends LinearOpMode {
 
     private final Pose iNTAKEGARDEN = poseFactory.of(48, 9, 90); // START
     private final Pose preLoad = poseFactory.of(48, 24, 90);
-    private final Pose toGardenStart = poseFactory.of(48, 24, 90);
+    private final Pose toGardenStart = poseFactory.of(48, 24, 270);
     private final Pose toGarden = poseFactory.of(8.9307, 13.1588, 270);
     private final Pose intoGardenStart = poseFactory.of(8.9307, 13.1588, 270);
-    private final Pose intoGarden = poseFactory.of(9, 8, 270);
-    private final Pose backStart = poseFactory.of(9, 8, 270);
+    private final Pose intoGarden = poseFactory.of(8, 11, 270);
+    private final Pose backStart = poseFactory.of(8, 11, 270);
     private final Pose back = poseFactory.of(9.015, 12.6609, 270);
     private final Pose intoGarden1Start = poseFactory.of(9.015, 12.6609, 270);
     private final Pose intoGarden1 = poseFactory.of(9.1014, 7.7659, 270);
@@ -131,6 +133,9 @@ public class AutoPath extends LinearOpMode {
     // ---------- Routine ----------
     public Command autoRoutine() {
         return sequential(
+                // 0. Shooter ON desde el start (acelera mientras avanza a preLoad)
+                instant(() -> shooter.setTargetTps(PRELOAD_TPS)),
+
                 // 1. Precarga
                 instant(() -> turret.setRightCell(SHOT1_RIGHT_CELL)),
                 mark("preLoad"),       follow(follower, preLoad()),       delay(),
@@ -138,11 +143,11 @@ public class AutoPath extends LinearOpMode {
                 shoot("SHOOT1", PRELOAD_TPS),
                 turnTo(preLoad, 270),
 
-                // 2. GARDEN: llega con intake apagado, intake ON solo INTAKE_GARDEN_MS
+                // 2. GARDEN: intake ON desde que sale hacia el GARDEN, sigue INTAKE_GARDEN_MS ya adentro
+                instant(this::intakeOn),
                 mark("toGarden"),      follow(follower, toGarden()),      delay(),
                 mark("intoGarden"),    follow(follower, intoGarden()),
                 mark("intake GARDEN"),
-                instant(this::intakeOn),
                 waitMs(INTAKE_GARDEN_MS),
                 waitMs(INTAKE_GARDEN_MS),
                 instant(this::intakeOff),                                 delay(),
@@ -270,6 +275,7 @@ public class AutoPath extends LinearOpMode {
         telemetry.update();
 
         waitForStart();
+        PoseStorage.pose = null; // borra la pose del partido anterior para que el filtro acepte la nueva
         schedule(routine);
 
         while (opModeIsActive()) {
@@ -277,6 +283,7 @@ public class AutoPath extends LinearOpMode {
             Scheduler.execute();
 
             Pose pose = follower.pose();
+            PoseStorage.save(pose); // el TeleOp arranca desde aquí
             turret.aim(pose.x(), pose.y(), pose.heading());
             shooter.update();
 
