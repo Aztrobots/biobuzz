@@ -26,8 +26,9 @@ import org.firstinspires.ftc.teamcode.subsystems.TurretSubsystem;
  * TeleOp ROJO con Pedro 3 + auto-aim de torreta. Arranca en la pose final del AutoPath (o en START si no hubo auto).
  *  Sticks: manejo FIELD CENTRIC (mover cualquier stick cancela el auto-drive / el hold)
  *  dpad_right: ir a (48, 24) + cell derecha  |  dpad_left: ir a (48, 120) + cell izquierda (los dos regresan a auto-aim)
- *  dpad_up / dpad_down: torreta MANUAL de emergencia (+/- TURRET_STEP_DEG), apaga el auto-aim
- *  A: shooter on/off  |  RB: ráfaga (solo a velocidad)  |  RT: intake  |  LT: escupir  |  Y: flower
+ *  dpad_down: ir a (72, 24) + cell derecha   |  dpad_up: ir a (72, 120) + cell izquierda (también regresan a auto-aim)
+ *  X / B: torreta MANUAL de emergencia (X = izquierda, B = derecha, TURRET_STEP_DEG por toque), apaga el auto-aim
+ *  A: shooter on/off  |  RB: ráfaga (solo a velocidad)  |  RT: intake  |  LT: escupir  |  R3 (click stick derecho): flower
  */
 @Configurable
 @TeleOp(name = "TeleOpManual", group = "teleop")
@@ -46,6 +47,8 @@ public class TeleOpManual extends OpMode {
     public static double START_X = 48, START_Y = 9,   START_HEADING_DEG = 90;  // igual que el start del AutoPath
     public static double DOWN_X  = 48, DOWN_Y  = 24,  DOWN_HEADING_DEG  = 90;  // cell derecha
     public static double UP_X    = 48, UP_Y    = 120, UP_HEADING_DEG    = 270; // cell izquierda
+    public static double DOWN2_X = 72, DOWN2_Y = 24,  DOWN2_HEADING_DEG = 90;  // cell derecha (dpad_down)
+    public static double UP2_X   = 72, UP2_Y   = 120, UP2_HEADING_DEG   = 270; // cell izquierda (dpad_up)
 
     private final PoseFactory poses = PoseFactory.degrees();
 
@@ -59,12 +62,13 @@ public class TeleOpManual extends OpMode {
     private FlowerSubsystem flower;
 
     private boolean shooterOn = false;
-    private boolean lastA = false, lastY = false;
+    private boolean lastA = false, lastR3 = false;
     private boolean lastDpadDown = false, lastDpadUp = false, lastDpadLeft = false, lastDpadRight = false;
     private boolean bursting = false;
     private final ElapsedTime shootTimer = new ElapsedTime();
     private Pose startPose;
     private boolean manualTurret = false;
+    private boolean lastX = false, lastB = false;
 
     @Override
     public void init() {
@@ -116,21 +120,27 @@ public class TeleOpManual extends OpMode {
             goTo(DOWN_X, DOWN_Y, DOWN_HEADING_DEG, true);
         } else if (gamepad1.dpad_left && !lastDpadLeft) {
             goTo(UP_X, UP_Y, UP_HEADING_DEG, false);
+        } else if (gamepad1.dpad_down && !lastDpadDown) {
+            goTo(DOWN2_X, DOWN2_Y, DOWN2_HEADING_DEG, true);
+        } else if (gamepad1.dpad_up && !lastDpadUp) {
+            goTo(UP2_X, UP2_Y, UP2_HEADING_DEG, false);
         }
         lastDpadRight = gamepad1.dpad_right;
         lastDpadLeft  = gamepad1.dpad_left;
+        lastDpadDown  = gamepad1.dpad_down;
+        lastDpadUp    = gamepad1.dpad_up;
 
         // Torreta manual de emergencia (parte del ángulo actual, sin brincos; el subsystem respeta la ventana)
-        if (gamepad1.dpad_up && !lastDpadUp) {
+        if (gamepad1.x && !lastX) {
             manualTurret = true;
-            turret.setAngleDeg(turret.getTargetDeg() + TURRET_STEP_DEG);
+            turret.setAngleDeg(turret.getTargetDeg() + TURRET_STEP_DEG); // X = izquierda
         }
-        if (gamepad1.dpad_down && !lastDpadDown) {
+        if (gamepad1.b && !lastB) {
             manualTurret = true;
-            turret.setAngleDeg(turret.getTargetDeg() - TURRET_STEP_DEG);
+            turret.setAngleDeg(turret.getTargetDeg() - TURRET_STEP_DEG); // B = derecha
         }
-        lastDpadUp   = gamepad1.dpad_up;
-        lastDpadDown = gamepad1.dpad_down;
+        lastX = gamepad1.x;
+        lastB = gamepad1.b;
 
         // Auto-drive (FOLLOW, y HOLD al llegar) hasta que el driver toque los sticks
         Follower.Mode mode = follower.mode();
@@ -170,8 +180,8 @@ public class TeleOpManual extends OpMode {
         }
 
         // ---------- Flower (no se toca durante la ráfaga) ----------
-        if (!bursting && gamepad1.y && !lastY) flower.toggle();
-        lastY = gamepad1.y;
+        if (!bursting && gamepad1.right_stick_button && !lastR3) flower.toggle();
+        lastR3 = gamepad1.right_stick_button;
 
         // ---------- Intake / Transfer / Gate ----------
         if (bursting && shootTimer.milliseconds() >= FLOWER_SAFE_MS) {
